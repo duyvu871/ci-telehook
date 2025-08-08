@@ -77,9 +77,16 @@ jobs:
           
           echo "CI completed for $REPO on branch $BRANCH with status: $STATUS"
           echo "Run URL: $RUN_URL"
+          echo "Commit: $COMMIT_SHA"
+          echo "Commit Message: $COMMIT_MESSAGE"
           
-          # Optional: Send to webhook if configured
-          if [ ! -z "${{ secrets.WEBHOOK_URL }}" ] && [ ! -z "${{ secrets.WEBHOOK_SECRET }}" ]; then
+          # Check webhook configuration
+          if [ -z "${{ secrets.WEBHOOK_URL }}" ] || [ -z "${{ secrets.WEBHOOK_SECRET }}" ]; then
+            echo "⚠️  Webhook not configured (WEBHOOK_URL or WEBHOOK_SECRET missing)"
+            echo "📝 To enable webhook notifications, add WEBHOOK_URL and WEBHOOK_SECRET to repository secrets"
+          else
+            echo "📡 Sending webhook notification..."
+            
             PAYLOAD='{
               "workflow_name": "'$WORKFLOW'",
               "repository": "'$REPO'",
@@ -92,7 +99,22 @@ jobs:
               "actor": "'$ACTOR'"
             }'
 
-            curl -X POST -H "Content-Type: application/json" \
+            # Send webhook with error handling
+            WEBHOOK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+                 -H "Content-Type: application/json" \
                  -H "X-Webhook-Secret: ${{ secrets.WEBHOOK_SECRET }}" \
-                 -d "$PAYLOAD" "${{ secrets.WEBHOOK_URL }}" || echo "Webhook notification failed"
+                 -d "$PAYLOAD" "${{ secrets.WEBHOOK_URL }}")
+            
+            # Extract HTTP status code (last line)
+            HTTP_STATUS=$(echo "$WEBHOOK_RESPONSE" | tail -n1)
+            RESPONSE_BODY=$(echo "$WEBHOOK_RESPONSE" | head -n -1)
+            
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Webhook notification sent successfully!"
+              echo "📊 Response: $RESPONSE_BODY"
+            else
+              echo "❌ Webhook notification failed with status: $HTTP_STATUS"
+              echo "📊 Response: $RESPONSE_BODY"
+              echo "🔗 Webhook URL: ${{ secrets.WEBHOOK_URL }}"
+            fi
           fi
