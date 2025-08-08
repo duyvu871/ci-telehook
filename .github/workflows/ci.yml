@@ -115,6 +115,13 @@ jobs:
               "actor": "'$ACTOR'"
             }'
 
+            echo ""
+            echo "📋 Webhook payload to be sent:"
+            echo "==============================="
+            echo "$PAYLOAD" | jq '.' 2>/dev/null || echo "$PAYLOAD"
+            echo "==============================="
+            echo ""
+
             # Send webhook with error handling
             WEBHOOK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
                  -H "Content-Type: application/json" \
