@@ -1,0 +1,67 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:3400:3000"
+    env_file:
+      - .env
+    # environment:
+    #   - NODE_ENV=production
+    #   - DATABASE_URL=postgresql://postgres:password@db:5432/tele_cicd
+    #   - JWT_SECRET=${JWT_SECRET:-default-jwt-secret}
+    #   - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    #   - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    #   - WEBHOOK_SECRET=${WEBHOOK_SECRET:-default-webhook-secret}
+    #   - DEFAULT_BOT_USERNAME=${DEFAULT_BOT_USERNAME}
+    #   - DEFAULT_BOT_PASSWORD=${DEFAULT_BOT_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - app-network
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=tele_cicd
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "127.0.0.1:5222:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tele_cicd"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    restart: unless-stopped
+    networks:
+      - app-network
+    profiles:
+      - debug
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge

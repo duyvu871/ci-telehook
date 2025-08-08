@@ -1,0 +1,100 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  username    String   @unique
+  password    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relationship with projects
+  projects    UserProject[]
+  
+  @@map("users")
+}
+
+model Project {
+  id            String   @id @default(cuid())
+  name          String
+  repository    String   @unique
+  description   String?
+  webhookSecret String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relationship with users and webhooks
+  users         UserProject[]
+  webhooks      Webhook[]
+  notifications NotificationSettings[]
+  
+  @@map("projects")
+}
+
+model UserProject {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  role      String   @default("member")
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, projectId])
+  @@map("user_projects")
+}
+
+model Webhook {
+  id            String   @id @default(cuid())
+  projectId     String
+  workflowName  String
+  runId         String
+  runUrl        String
+  status        String
+  branch        String
+  commitSha     String
+  commitMessage String?
+  actor         String
+  createdAt     DateTime @default(now())
+  
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("webhooks")
+}
+
+model NotificationSettings {
+  id              String   @id @default(cuid())
+  chatId          String   
+  username        String?
+  githubUsername  String?
+  repository      String
+  projectId       String
+  isActive        Boolean  @default(true)
+  notifyOnSuccess Boolean  @default(false)
+  notifyOnFailure Boolean  @default(true)
+  notifyOnBuild   Boolean  @default(true)
+  notifyOnDeploy  Boolean  @default(true)
+  notifyOnTest    Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  project         Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@unique([chatId, repository])
+  @@map("notification_settings")
+}

@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=tele_cicd
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5444:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tele_cicd"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    restart: unless-stopped
+    networks:
+      - app-network
+    profiles:
+      - debug
+
+volumes:
+  postgres_data_dev:
+
+networks:
+  app-network:
+    driver: bridge
