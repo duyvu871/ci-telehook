@@ -80,12 +80,28 @@ jobs:
           echo "Commit: $COMMIT_SHA"
           echo "Commit Message: $COMMIT_MESSAGE"
           
-          # Check webhook configuration
-          if [ -z "${{ secrets.WEBHOOK_URL }}" ] || [ -z "${{ secrets.WEBHOOK_SECRET }}" ]; then
-            echo "⚠️  Webhook not configured (WEBHOOK_URL or WEBHOOK_SECRET missing)"
-            echo "📝 To enable webhook notifications, add WEBHOOK_URL and WEBHOOK_SECRET to repository secrets"
+          # Check webhook configuration - Try both naming conventions
+          WEBHOOK_URL="${{ secrets.WEBHOOK_URL }}"
+          WEBHOOK_SECRET="${{ secrets.WEBHOOK_SECRET }}"
+          
+          # Fallback to CI_WEBHOOK_URL if WEBHOOK_URL is not set
+          if [ -z "$WEBHOOK_URL" ]; then
+            WEBHOOK_URL="${{ secrets.CI_WEBHOOK_URL }}"
+          fi
+          
+          if [ -z "$WEBHOOK_URL" ] || [ -z "$WEBHOOK_SECRET" ]; then
+            echo "⚠️  Webhook not configured"
+            echo "📝 To enable webhook notifications, add these to repository secrets:"
+            echo "  - WEBHOOK_URL or CI_WEBHOOK_URL (webhook endpoint)"
+            echo "  - WEBHOOK_SECRET (webhook secret key)"
+            echo ""
+            echo "🔍 Current secrets status:"
+            echo "  WEBHOOK_URL: ${{ secrets.WEBHOOK_URL != '' && 'SET' || 'NOT SET' }}"
+            echo "  WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET != '' && 'SET' || 'NOT SET' }}"
+            echo "  CI_WEBHOOK_URL: ${{ secrets.CI_WEBHOOK_URL != '' && 'SET' || 'NOT SET' }}"
           else
             echo "📡 Sending webhook notification..."
+            echo "🔗 Webhook URL: $WEBHOOK_URL"
             
             PAYLOAD='{
               "workflow_name": "'$WORKFLOW'",
@@ -102,8 +118,8 @@ jobs:
             # Send webhook with error handling
             WEBHOOK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
                  -H "Content-Type: application/json" \
-                 -H "X-Webhook-Secret: ${{ secrets.WEBHOOK_SECRET }}" \
-                 -d "$PAYLOAD" "${{ secrets.WEBHOOK_URL }}")
+                 -H "X-Webhook-Secret: $WEBHOOK_SECRET" \
+                 -d "$PAYLOAD" "$WEBHOOK_URL")
             
             # Extract HTTP status code (last line)
             HTTP_STATUS=$(echo "$WEBHOOK_RESPONSE" | tail -n1)
@@ -115,6 +131,6 @@ jobs:
             else
               echo "❌ Webhook notification failed with status: $HTTP_STATUS"
               echo "📊 Response: $RESPONSE_BODY"
-              echo "🔗 Webhook URL: ${{ secrets.WEBHOOK_URL }}"
+              echo "🔗 Webhook URL: $WEBHOOK_URL"
             fi
           fi
