@@ -611,6 +611,7 @@ export class TelegramService {
       if (workflow.includes('build') && !setting.notifyOnBuild) return false;
       if (workflow.includes('deploy') && !setting.notifyOnDeploy) return false;
       if (workflow.includes('test') && !setting.notifyOnTest) return false;
+      if (workflow.includes('ci') && !setting.notifyOnCi) return false;
 
       return true;
     });
