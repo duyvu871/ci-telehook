@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
-const http = require('http');
+const axios = require('axios');
 const crypto = require('crypto');
 
 // Configuration
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3400';
+console.log(`Using server URL: ${SERVER_URL}`);
+
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'your-webhook-secret';
 const WEBHOOK_ENDPOINT = '/api/webhook/github';
 
@@ -29,60 +31,43 @@ function createSignature(payload, secret) {
 }
 
 // Send webhook request
-function sendWebhook(payload, options = {}) {
-  return new Promise((resolve, reject) => {
+async function sendWebhook(payload, options = {}) {
+  try {
     const data = JSON.stringify(payload);
     const signature = createSignature(payload, WEBHOOK_SECRET);
     
-    const url = new URL(SERVER_URL + WEBHOOK_ENDPOINT);
-    
-    const requestOptions = {
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: url.pathname,
-      method: 'POST',
+    const response = await axios.post(SERVER_URL + WEBHOOK_ENDPOINT, payload, {
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data),
         'X-Webhook-Secret': WEBHOOK_SECRET,
         'X-Hub-Signature-256': `sha256=${signature}`,
         'User-Agent': 'GitHub-Webhook-Test/1.0',
         ...options.headers
-      }
+      },
+      validateStatus: () => true // Don't throw error for non-2xx status codes
+    });
+
+    return {
+      statusCode: response.status,
+      headers: response.headers,
+      data: response.data
     };
-
-    const req = http.request(requestOptions, (res) => {
-      let responseData = '';
-      
-      res.on('data', (chunk) => {
-        responseData += chunk;
-      });
-      
-      res.on('end', () => {
-        try {
-          const parsedData = JSON.parse(responseData);
-          resolve({
-            statusCode: res.statusCode,
-            headers: res.headers,
-            data: parsedData
-          });
-        } catch (error) {
-          resolve({
-            statusCode: res.statusCode,
-            headers: res.headers,
-            data: responseData
-          });
-        }
-      });
-    });
-
-    req.on('error', (error) => {
-      reject(error);
-    });
-
-    req.write(data);
-    req.end();
-  });
+  } catch (error) {
+    if (error.response) {
+      // Server responded with error status
+      return {
+        statusCode: error.response.status,
+        headers: error.response.headers,
+        data: error.response.data
+      };
+    } else if (error.request) {
+      // Request was made but no response received
+      throw new Error(`No response received: ${error.message}`);
+    } else {
+      // Something else happened
+      throw new Error(`Request failed: ${error.message}`);
+    }
+  }
 }
 
 // Test different scenarios
@@ -173,44 +158,20 @@ async function runTests() {
   console.log('\n🔒 Testing with wrong webhook secret...');
   try {
     const wrongSecretPayload = { ...samplePayload };
-    const data = JSON.stringify(wrongSecretPayload);
     
-    const url = new URL(SERVER_URL + WEBHOOK_ENDPOINT);
-    const requestOptions = {
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: url.pathname,
-      method: 'POST',
+    const response = await axios.post(SERVER_URL + WEBHOOK_ENDPOINT, wrongSecretPayload, {
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data),
         'X-Webhook-Secret': 'wrong-secret',
         'User-Agent': 'GitHub-Webhook-Test/1.0'
-      }
-    };
-
-    const result = await new Promise((resolve, reject) => {
-      const req = http.request(requestOptions, (res) => {
-        let responseData = '';
-        res.on('data', chunk => responseData += chunk);
-        res.on('end', () => {
-          try {
-            resolve({
-              statusCode: res.statusCode,
-              data: JSON.parse(responseData)
-            });
-          } catch {
-            resolve({
-              statusCode: res.statusCode,
-              data: responseData
-            });
-          }
-        });
-      });
-      req.on('error', reject);
-      req.write(data);
-      req.end();
+      },
+      validateStatus: () => true
     });
+
+    const result = {
+      statusCode: response.status,
+      data: response.data
+    };
 
     if (result.statusCode === 401 || result.statusCode === 403) {
       console.log(`✅ PASS - Correctly rejected wrong webhook secret (status ${result.statusCode})`);
@@ -246,33 +207,14 @@ async function healthCheck() {
   console.log('🏥 Performing health check...');
   
   try {
-    const url = new URL(SERVER_URL + '/health');
-    const result = await new Promise((resolve, reject) => {
-      const req = http.request({
-        hostname: url.hostname,
-        port: url.port || (url.protocol === 'https:' ? 443 : 80),
-        path: url.pathname,
-        method: 'GET'
-      }, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            resolve({
-              statusCode: res.statusCode,
-              data: JSON.parse(data)
-            });
-          } catch {
-            resolve({
-              statusCode: res.statusCode,
-              data: data
-            });
-          }
-        });
-      });
-      req.on('error', reject);
-      req.end();
+    const response = await axios.get(SERVER_URL + '/health', {
+      validateStatus: () => true
     });
+
+    const result = {
+      statusCode: response.status,
+      data: response.data
+    };
 
     if (result.statusCode === 200) {
       console.log('✅ Server is healthy');
@@ -310,31 +252,33 @@ async function main() {
 if (process.argv.length > 2) {
   const command = process.argv[2];
   
-  switch (command) {
-    case 'health':
-      healthCheck().then(isHealthy => {
+  (async () => {
+    switch (command) {
+      case 'health':
+        const isHealthy = await healthCheck();
         process.exit(isHealthy ? 0 : 1);
-      });
-      break;
-    
-    case 'single':
-      // Send single test webhook
-      sendWebhook(samplePayload).then(result => {
-        console.log('📊 Response:', JSON.stringify(result, null, 2));
-        process.exit(result.statusCode === 200 ? 0 : 1);
-      }).catch(error => {
-        console.error('❌ Error:', error.message);
+        break;
+      
+      case 'single':
+        // Send single test webhook
+        try {
+          const result = await sendWebhook(samplePayload);
+          console.log('📊 Response:', JSON.stringify(result, null, 2));
+          process.exit(result.statusCode === 200 ? 0 : 1);
+        } catch (error) {
+          console.error('❌ Error:', error.message);
+          process.exit(1);
+        }
+        break;
+      
+      default:
+        console.log('Usage:');
+        console.log('  node test-webhook.js         # Run all tests');
+        console.log('  node test-webhook.js health  # Health check only');
+        console.log('  node test-webhook.js single  # Send single webhook');
         process.exit(1);
-      });
-      break;
-    
-    default:
-      console.log('Usage:');
-      console.log('  node test-webhook.js         # Run all tests');
-      console.log('  node test-webhook.js health  # Health check only');
-      console.log('  node test-webhook.js single  # Send single webhook');
-      process.exit(1);
-  }
+    }
+  })();
 } else {
   main();
 }
