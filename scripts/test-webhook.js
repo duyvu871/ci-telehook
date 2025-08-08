@@ -4,7 +4,7 @@ const http = require('http');
 const crypto = require('crypto');
 
 // Configuration
-const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3400';
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'your-webhook-secret';
 const WEBHOOK_ENDPOINT = '/api/webhook/github';
 

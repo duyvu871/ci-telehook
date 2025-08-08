@@ -5,15 +5,15 @@ services:
       - "127.0.0.1:3400:3000"
     env_file:
       - .env
-    # environment:
-    #   - NODE_ENV=production
-    #   - DATABASE_URL=postgresql://postgres:password@db:5432/tele_cicd
-    #   - JWT_SECRET=${JWT_SECRET:-default-jwt-secret}
-    #   - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-    #   - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
-    #   - WEBHOOK_SECRET=${WEBHOOK_SECRET:-default-webhook-secret}
-    #   - DEFAULT_BOT_USERNAME=${DEFAULT_BOT_USERNAME}
-    #   - DEFAULT_BOT_PASSWORD=${DEFAULT_BOT_PASSWORD}
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET:-default-jwt-secret}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-default-webhook-secret}
+      - DEFAULT_BOT_USERNAME=${DEFAULT_BOT_USERNAME}
+      - DEFAULT_BOT_PASSWORD=${DEFAULT_BOT_PASSWORD}
     depends_on:
       db:
         condition: service_healthy

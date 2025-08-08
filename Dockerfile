@@ -11,15 +11,13 @@ COPY tsconfig.json ./
 RUN npm ci && npm cache clean --force
 
 # Copy source code
-COPY ./src/ ./src/
-COPY ./prisma/ ./prisma/
+COPY . .
 
 # list of files to copy
 RUN ls -a
 
-# Generate Prisma client
-RUN npx prisma generate --schema=./prisma/schema.prisma && \
-    npx prisma db push --skip-generate --schema=./prisma/schema.prisma
+# Generate Prisma client (không cần DATABASE_URL)
+RUN npx prisma generate --schema=./prisma/schema.prisma
 
 # Build TypeScript
 RUN npm run build
@@ -29,12 +27,12 @@ FROM node:20 AS production
 
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init for proper signal handling (Debian syntax)
+RUN apt-get update && apt-get install -y --no-install-recommends dumb-init && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodeuser -u 1001
+# Create non-root user (Debian syntax)
+RUN groupadd --gid 1001 nodejs && \
+    useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home nodeuser
 
 # Copy built application
 COPY --from=builder --chown=nodeuser:nodejs /app/dist ./dist

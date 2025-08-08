@@ -298,32 +298,18 @@ export class TelegramService {
       const messageText = ctx.message?.text || '';
       const parts = messageText.split(' ');
       
-      if (parts.length < 3) {
+      if (parts.length < 2) {
         ctx.reply(
-          '🔐 *Admin Command - Yêu cầu xác thực*\n\n' +
-          'Cách dùng: `/unregister_chat <admin_password> <chatId>`\n\n' +
-          'Ví dụ: `/unregister_chat mypassword -123456789`\n\n' +
+          '❌ Vui lòng chỉ định Chat ID!\n\n' +
+          'Cách dùng: `/unregister_chat <chatId>`\n\n' +
+          'Ví dụ: `/unregister_chat -123456789`\n\n' +
           '⚠️ *Cảnh báo:* Lệnh này sẽ hủy đăng ký TOÀN BỘ notifications của chat đó.',
           { parse_mode: 'Markdown' }
         );
         return;
       }
 
-      const providedPassword = parts[1];
-      const targetChatId = parts[2];
-      
-      // Verify admin password
-      if (providedPassword !== config.admin.password) {
-        ctx.reply(
-          '❌ *Mật khẩu admin không đúng!*\n\n' +
-          '🚫 Truy cập bị từ chối.',
-          { parse_mode: 'Markdown' }
-        );
-        
-        // Log unauthorized access attempt
-        console.warn(`❌ Unauthorized admin access attempt from chat ${ctx.chat.id} by user ${ctx.from?.username || 'unknown'}`);
-        return;
-      }
+      const targetChatId = parts[1];
 
       try {
         // Get all settings for this chat first to show what will be deleted
@@ -354,9 +340,6 @@ export class TelegramService {
           `📂 *Repositories đã hủy:*\n${repoList}`,
           { parse_mode: 'Markdown' }
         );
-
-        // Log admin action
-        console.log(`✅ Admin ${ctx.from?.username || 'unknown'} unregistered chat ${targetChatId} with ${deleted.count} registrations`);
 
         // Optional: Try to notify the target chat (if bot has access)
         try {
