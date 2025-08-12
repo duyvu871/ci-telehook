@@ -64,6 +64,10 @@ jobs:
 
       - name: Send CI notification
         if: always()
+        env:
+          
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_API_URL: ${{ github.api_url }}
         run: |
           STATUS="${{ job.status }}"
           REPO="${{ github.repository }}"
@@ -75,7 +79,8 @@ jobs:
           ACTOR="${{ github.actor }}"
           RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
           
-          echo "CI completed for $REPO on branch $BRANCH with status: $STATUS"
+          echo "CI completed for $REPO on branch $BRANCH"
+          echo "- overall: $STATUS"
           echo "Run URL: $RUN_URL"
           echo "Commit: $COMMIT_SHA"
           echo "Commit Message: $COMMIT_MESSAGE"
@@ -109,6 +114,29 @@ jobs:
               sudo apt-get install -y jq >/dev/null 2>&1 || true
             fi
 
+            # Fetch jobs for this run from GitHub API to include id and direct job URL
+            JOBS_API_JSON=$(curl -s \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "$GITHUB_API_URL/repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100")
+
+            # Build jobs array: [{id, name, result, url, started_at, completed_at, duration_ms}]
+            JOBS_JSON=$(echo "$JOBS_API_JSON" | jq '[.jobs // [] | .[]
+              | { id: .id,
+                  name: .name,
+                  result: (.conclusion // .status),
+                  url: .html_url,
+                  started_at: .started_at,
+                  completed_at: .completed_at,
+                  duration_ms: (if (.started_at and .completed_at)
+                                then ((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)) * 1000
+                                else null end)
+                }
+            ]')
+
+            # Compute total workflow job duration (sum of job durations)
+            WORKFLOW_DURATION_MS=$(echo "$JOBS_JSON" | jq '([.[] | select(.duration_ms != null) | .duration_ms] | add) // 0')
+
             # Build JSON payload safely (handles newlines and quotes)
             PAYLOAD=$(jq -n \
               --arg workflow "$WORKFLOW" \
@@ -120,7 +148,9 @@ jobs:
               --arg commit_sha "$COMMIT_SHA" \
               --arg commit_message "$COMMIT_MESSAGE" \
               --arg actor "$ACTOR" \
-              '{workflow_name:$workflow, repository:$repo, run_id:$run_id, run_url:$run_url, status:$status, branch:$branch, commit_sha:$commit_sha, commit_message:$commit_message, actor:$actor}')
+              --argjson jobs "$JOBS_JSON" \
+              --arg workflow_duration_ms "$WORKFLOW_DURATION_MS" \
+              '{workflow_name:$workflow, repository:$repo, run_id:$run_id, run_url:$run_url, status:$status, jobs:$jobs, workflow_duration_ms: ($workflow_duration_ms|tonumber), branch:$branch, commit_sha:$commit_sha, commit_message:$commit_message, actor:$actor}')
 
             echo ""
             echo "📋 Webhook payload to be sent:"
