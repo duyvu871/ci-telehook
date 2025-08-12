@@ -38,9 +38,29 @@ export class WebhookController {
       // Send notification via Telegram
       await this.telegramService.sendNotification(payload);
 
+      // Build jobs summary for response
+      const jobs = payload.jobs || [];
+      type JobResult = 'success' | 'failure' | 'in_progress' | 'cancelled' | 'skipped';
+      const counts: Record<'total' | JobResult, number> = {
+        total: 0,
+        success: 0,
+        failure: 0,
+        in_progress: 0,
+        cancelled: 0,
+        skipped: 0,
+      };
+      for (const j of jobs) {
+        counts[j.result] += 1;
+        counts.total += 1;
+      }
+
+      const jobDetails = jobs.map(j => ({ id: j.id, name: j.name, result: j.result, url: j.url }));
+
       res.json({
         message: 'Webhook processed successfully',
         timestamp: new Date().toISOString(),
+        jobs: jobDetails,
+        jobs_summary: counts,
       });
     } catch (error) {
       console.error('Webhook processing error:', error);

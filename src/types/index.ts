@@ -1,5 +1,14 @@
 import { z } from 'zod';
 
+// Job schema for GitHub Actions
+export const GitHubJobSchema = z.object({
+  id: z.number(),
+  name: z.string().min(1, 'Job name is required'),
+  result: z.enum(['success', 'failure', 'in_progress', 'cancelled', 'skipped']),
+  url: z.string().url('Job URL must be a valid URL'),
+});
+export type GitHubWebhookJob = z.infer<typeof GitHubJobSchema>;
+
 // GitHub Webhook Payload Schema
 export const GitHubWebhookPayloadSchema = z.object({
   workflow_name: z.string().min(1, 'Workflow name is required'),
@@ -11,6 +20,8 @@ export const GitHubWebhookPayloadSchema = z.object({
   commit_sha: z.string().min(7, 'Commit SHA must be at least 7 characters'),
   commit_message: z.string().optional(),
   actor: z.string().min(1, 'Actor is required'),
+  // New: list of jobs in the workflow run
+  jobs: z.array(GitHubJobSchema).optional().default([]),
 });
 
 export type GitHubWebhookPayload = z.infer<typeof GitHubWebhookPayloadSchema>;
@@ -36,10 +47,10 @@ export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 // Project Schemas
 export const ProjectRequestSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(100, 'Project name too long'),
-  repository: z.string().min(1, 'Repository is required').regex(
-    /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/,
-    'Repository must be in format: owner/repo'
-  ),
+  repository: z
+    .string()
+    .min(1, 'Repository is required')
+    .regex(/^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/, 'Repository must be in format: owner/repo'),
   description: z.string().max(500, 'Description too long').optional(),
 });
 
@@ -61,7 +72,9 @@ export type NotificationSettingsRequest = z.infer<typeof NotificationSettingsReq
 // Change Password Schema
 export const ChangePasswordRequestSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(6, 'New password must be at least 6 characters')
+  newPassword: z
+    .string()
+    .min(6, 'New password must be at least 6 characters')
     .regex(
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
       'New password must contain at least one lowercase letter, one uppercase letter, and one number'
@@ -81,18 +94,30 @@ export type UserProjectAssignment = z.infer<typeof UserProjectAssignmentSchema>;
 
 // Query Parameters Schemas
 export const PaginationSchema = z.object({
-  page: z.string().optional().default('1').transform(Number).refine(n => n > 0, 'Page must be positive'),
-  limit: z.string().optional().default('10').transform(Number).refine(n => n > 0 && n <= 100, 'Limit must be between 1 and 100'),
+  page: z
+    .string()
+    .optional()
+    .default('1')
+    .transform(Number)
+    .refine((n) => n > 0, 'Page must be positive'),
+  limit: z
+    .string()
+    .optional()
+    .default('10')
+    .transform(Number)
+    .refine((n) => n > 0 && n <= 100, 'Limit must be between 1 and 100'),
 });
 
 export type PaginationQuery = z.infer<typeof PaginationSchema>;
 
-export const WebhookQuerySchema = z.object({
-  projectId: z.string().cuid('Invalid project ID').optional(),
-  status: z.enum(['success', 'failure', 'cancelled', 'skipped', 'in_progress']).optional(),
-  branch: z.string().optional(),
-  actor: z.string().optional(),
-}).merge(PaginationSchema);
+export const WebhookQuerySchema = z
+  .object({
+    projectId: z.string().cuid('Invalid project ID').optional(),
+    status: z.enum(['success', 'failure', 'cancelled', 'skipped', 'in_progress']).optional(),
+    branch: z.string().optional(),
+    actor: z.string().optional(),
+  })
+  .merge(PaginationSchema);
 
 export type WebhookQuery = z.infer<typeof WebhookQuerySchema>;
 

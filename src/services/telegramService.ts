@@ -633,6 +633,36 @@ export class TelegramService {
     const branchUrl = `${repoUrl}/tree/${payload.branch}`;
     const actorUrl = `https://github.com/${payload.actor}`;
 
+    // Build jobs section if present
+    let jobsSection = '';
+    const jobs = payload.jobs || [];
+    if (jobs.length > 0) {
+      const maxJobs = 10;
+      const shown = jobs.slice(0, maxJobs);
+      const counts = { success: 0, failure: 0, in_progress: 0, cancelled: 0, skipped: 0 };
+      const jobLines = shown
+        .map((j) => {
+          // accumulate counts
+          // @ts-ignore strict key typing handled by schema
+          counts[j.result] = (counts as any)[j.result] + 1;
+          const emoji = this.getResultEmoji(j.result);
+          const name = this.escapeMarkdown(j.name);
+          const label = j.result.toUpperCase().replace('_', ' ');
+          return `  - ${emoji} [${name}](${j.url}) • ${label}`;
+        })
+        .join('\n');
+      // finish counts for hidden jobs too
+      if (jobs.length > shown.length) {
+        for (const j of jobs.slice(shown.length)) {
+          // @ts-ignore
+          counts[j.result] = (counts as any)[j.result] + 1;
+        }
+      }
+      const summaryLine = `Totals: ✅ ${counts.success} • ❌ ${counts.failure} • 🔄 ${counts.in_progress} • ⚠️ ${counts.cancelled} • ⏭️ ${counts.skipped}`;
+      const moreLine = jobs.length > maxJobs ? `\n  …and ${jobs.length - maxJobs} more` : '';
+      jobsSection = `\n\n*Jobs (${jobs.length}):*\n${jobLines}\n${summaryLine}${moreLine}`;
+    }
+
     return `${statusEmoji} *CI/CD Notification*
 
 *Workflow:* ${workflowName}
@@ -643,7 +673,7 @@ export class TelegramService {
 • *Branch:* [${payload.branch}](${branchUrl})
 • *Actor:* [${actor}](${actorUrl})
 • *Commit:* \`${payload.commit_sha.substring(0, 7)}\`
-${commitMessage ? `• *Message:* _"${commitMessage}"_` : ''}
+${commitMessage ? `• *Message:* _"${commitMessage}"_` : ''}${jobsSection}
 
 [View Workflow Run](${payload.run_url})`.trim();
   }
@@ -669,6 +699,18 @@ ${commitMessage ? `• *Message:* _"${commitMessage}"_` : ''}
     switch (status.toLowerCase()) {
       case 'success': return '✅';
       case 'failure': return '❌';
+      case 'cancelled': return '⚠️';
+      case 'skipped': return '⏭️';
+      case 'in_progress': return '🔄';
+      default: return '🔵';
+    }
+  }
+
+  private getResultEmoji(result: string): string {
+    switch (result.toLowerCase()) {
+      case 'success': return '✅';
+      case 'failure': return '❌';
+      case 'in_progress': return '🔄';
       case 'cancelled': return '⚠️';
       case 'skipped': return '⏭️';
       default: return '🔵';
