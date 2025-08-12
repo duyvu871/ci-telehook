@@ -14,7 +14,8 @@ jobs:
   ci:
     name: Continuous Integration
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:15-alpine
@@ -62,14 +63,21 @@ jobs:
       - name: Build application
         run: npm run build
 
+  notify:
+    name: Send notification
+    runs-on: ubuntu-latest
+    needs: ci
+    if: always()
+    permissions:
+      contents: read
+      actions: read
+    steps:
       - name: Send CI notification
-        if: always()
         env:
-          
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_API_URL: ${{ github.api_url }}
         run: |
-          STATUS="${{ job.status }}"
+          STATUS="${{ needs.ci.result }}"
           REPO="${{ github.repository }}"
           RUN_ID="${{ github.run_id }}"
           WORKFLOW="${{ github.workflow }}"
@@ -104,77 +112,82 @@ jobs:
             echo "  WEBHOOK_URL: ${{ secrets.WEBHOOK_URL != '' && 'SET' || 'NOT SET' }}"
             echo "  WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET != '' && 'SET' || 'NOT SET' }}"
             echo "  CI_WEBHOOK_URL: ${{ secrets.CI_WEBHOOK_URL != '' && 'SET' || 'NOT SET' }}"
+            exit 0
+          fi
+
+          echo "📡 Sending webhook notification..."
+          echo "🔗 Webhook URL: $WEBHOOK_URL"
+          
+          # Ensure jq is available for safe JSON construction
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "Installing jq..."
+            sudo apt-get update -y >/dev/null 2>&1 || true
+            sudo apt-get install -y jq >/dev/null 2>&1 || true
+          fi
+
+          # Small delay to ensure GitHub API has finalized job timestamps
+          sleep 3
+
+          # Fetch jobs for this run from GitHub API to include id and direct job URL
+          JOBS_API_JSON=$(curl -s \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100")
+
+          # Build jobs array: [{id, name, result, url, started_at, completed_at, duration_ms}]
+          JOBS_JSON=$(echo "$JOBS_API_JSON" | jq '[.jobs // [] | .[]
+            | { id: .id,
+                name: .name,
+                result: (.conclusion // .status),
+                url: .html_url,
+                started_at: .started_at,
+                completed_at: .completed_at,
+                duration_ms: (if (.started_at and .completed_at)
+                              then ((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)) * 1000
+                              else null end)
+              }
+          ]')
+
+          # Compute total workflow job duration (sum of job durations)
+          WORKFLOW_DURATION_MS=$(echo "$JOBS_JSON" | jq '([.[] | select(.duration_ms != null) | .duration_ms] | add) // 0')
+
+          # Build JSON payload safely (handles newlines and quotes)
+          PAYLOAD=$(jq -n \
+            --arg workflow "$WORKFLOW" \
+            --arg repo "$REPO" \
+            --arg run_id "$RUN_ID" \
+            --arg run_url "$RUN_URL" \
+            --arg status "$STATUS" \
+            --arg branch "$BRANCH" \
+            --arg commit_sha "$COMMIT_SHA" \
+            --arg commit_message "$COMMIT_MESSAGE" \
+            --arg actor "$ACTOR" \
+            --argjson jobs "$JOBS_JSON" \
+            --arg workflow_duration_ms "$WORKFLOW_DURATION_MS" \
+            '{workflow_name:$workflow, repository:$repo, run_id:$run_id, run_url:$run_url, status:$status, jobs:$jobs, workflow_duration_ms: ($workflow_duration_ms|tonumber), branch:$branch, commit_sha:$commit_sha, commit_message:$commit_message, actor:$actor}')
+
+          echo ""
+          echo "📋 Webhook payload to be sent:"
+          echo "==============================="
+          echo "$PAYLOAD" | jq '.' 2>/dev/null || echo "$PAYLOAD"
+          echo "==============================="
+          echo ""
+
+          # Send webhook with error handling
+          WEBHOOK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+               -H "Content-Type: application/json" \
+               -H "X-Webhook-Secret: $WEBHOOK_SECRET" \
+               -d "$PAYLOAD" "$WEBHOOK_URL")
+          
+          # Extract HTTP status code (last line)
+          HTTP_STATUS=$(echo "$WEBHOOK_RESPONSE" | tail -n1)
+          RESPONSE_BODY=$(echo "$WEBHOOK_RESPONSE" | head -n -1)
+          
+          if [ "${HTTP_STATUS:0:1}" = "2" ]; then
+            echo "✅ Webhook notification sent successfully! (HTTP $HTTP_STATUS)"
+            echo "📊 Response: $RESPONSE_BODY"
           else
-            echo "📡 Sending webhook notification..."
+            echo "❌ Webhook notification failed with status: $HTTP_STATUS"
+            echo "📊 Response: $RESPONSE_BODY"
             echo "🔗 Webhook URL: $WEBHOOK_URL"
-            # Ensure jq is available for safe JSON construction
-            if ! command -v jq >/dev/null 2>&1; then
-              echo "Installing jq..."
-              sudo apt-get update -y >/dev/null 2>&1 || true
-              sudo apt-get install -y jq >/dev/null 2>&1 || true
-            fi
-
-            # Fetch jobs for this run from GitHub API to include id and direct job URL
-            JOBS_API_JSON=$(curl -s \
-              -H "Authorization: Bearer $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "$GITHUB_API_URL/repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100")
-
-            # Build jobs array: [{id, name, result, url, started_at, completed_at, duration_ms}]
-            JOBS_JSON=$(echo "$JOBS_API_JSON" | jq '[.jobs // [] | .[]
-              | { id: .id,
-                  name: .name,
-                  result: (.conclusion // .status),
-                  url: .html_url,
-                  started_at: .started_at,
-                  completed_at: .completed_at,
-                  duration_ms: (if (.started_at and .completed_at)
-                                then ((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)) * 1000
-                                else null end)
-                }
-            ]')
-
-            # Compute total workflow job duration (sum of job durations)
-            WORKFLOW_DURATION_MS=$(echo "$JOBS_JSON" | jq '([.[] | select(.duration_ms != null) | .duration_ms] | add) // 0')
-
-            # Build JSON payload safely (handles newlines and quotes)
-            PAYLOAD=$(jq -n \
-              --arg workflow "$WORKFLOW" \
-              --arg repo "$REPO" \
-              --arg run_id "$RUN_ID" \
-              --arg run_url "$RUN_URL" \
-              --arg status "$STATUS" \
-              --arg branch "$BRANCH" \
-              --arg commit_sha "$COMMIT_SHA" \
-              --arg commit_message "$COMMIT_MESSAGE" \
-              --arg actor "$ACTOR" \
-              --argjson jobs "$JOBS_JSON" \
-              --arg workflow_duration_ms "$WORKFLOW_DURATION_MS" \
-              '{workflow_name:$workflow, repository:$repo, run_id:$run_id, run_url:$run_url, status:$status, jobs:$jobs, workflow_duration_ms: ($workflow_duration_ms|tonumber), branch:$branch, commit_sha:$commit_sha, commit_message:$commit_message, actor:$actor}')
-
-            echo ""
-            echo "📋 Webhook payload to be sent:"
-            echo "==============================="
-            echo "$PAYLOAD" | jq '.' 2>/dev/null || echo "$PAYLOAD"
-            echo "==============================="
-            echo ""
-
-            # Send webhook with error handling
-            WEBHOOK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-                 -H "Content-Type: application/json" \
-                 -H "X-Webhook-Secret: $WEBHOOK_SECRET" \
-                 -d "$PAYLOAD" "$WEBHOOK_URL")
-            
-            # Extract HTTP status code (last line)
-            HTTP_STATUS=$(echo "$WEBHOOK_RESPONSE" | tail -n1)
-            RESPONSE_BODY=$(echo "$WEBHOOK_RESPONSE" | head -n -1)
-            
-            if [ "$HTTP_STATUS" = "200" ]; then
-              echo "✅ Webhook notification sent successfully!"
-              echo "📊 Response: $RESPONSE_BODY"
-            else
-              echo "❌ Webhook notification failed with status: $HTTP_STATUS"
-              echo "📊 Response: $RESPONSE_BODY"
-              echo "🔗 Webhook URL: $WEBHOOK_URL"
-            fi
           fi
