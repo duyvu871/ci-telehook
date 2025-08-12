@@ -132,10 +132,7 @@ jobs:
           JOBS_API_JSON=$(curl -s \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            "$GITHUB_API_URL/repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100")
-
-          echo "Fetched job details from GitHub API"
-          echo $JOBS_API_JSON | jq '.' 2>/dev/null || echo "$JOBS_API_JSON"
+            "$GITHUB_API_URL/repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100")"
 
           # Build jobs array: [{id, name, result, url, started_at, completed_at, duration_ms}]
           JOBS_JSON=$(echo "$JOBS_API_JSON" | jq '[.jobs // [] | .[]
@@ -170,12 +167,12 @@ jobs:
             --arg workflow_duration_ms "$WORKFLOW_DURATION_MS" \
             '{workflow_name:$workflow, repository:$repo, run_id:$run_id, run_url:$run_url, status:$status, jobs:$jobs, jobs_full:$jobs_full, workflow_duration_ms: ($workflow_duration_ms|tonumber), branch:$branch, commit_sha:$commit_sha, commit_message:$commit_message, actor:$actor}')
 
-          echo ""
-          echo "📋 Webhook payload to be sent:"
-          echo "==============================="
-          echo "$PAYLOAD" | jq '.' 2>/dev/null || echo "$PAYLOAD"
-          echo "==============================="
-          echo ""
+          # echo ""
+          # echo "📋 Webhook payload to be sent:"
+          # echo "==============================="
+          # echo "$PAYLOAD" | jq '.' 2>/dev/null || echo "$PAYLOAD"
+          # echo "==============================="
+          # echo ""
 
           # Send webhook with error handling
           WEBHOOK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
