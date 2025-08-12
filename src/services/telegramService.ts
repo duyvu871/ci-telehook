@@ -672,8 +672,7 @@ export class TelegramService {
 • *Branch:* [${payload.branch}](${branchUrl})
 • *Actor:* [${actor}](${actorUrl})
 • *Commit:* \`${payload.commit_sha.substring(0, 7)}\`
-• *Message:* _"${commitMessage || ""}"_
-• ${jobsSection}
+• *Message:* _"${commitMessage || ""}"_${jobsSection}
 
 [View Workflow Run](${payload.run_url})`.trim();
   }
