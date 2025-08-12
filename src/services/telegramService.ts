@@ -611,7 +611,6 @@ export class TelegramService {
       if (workflow.includes('build') && !setting.notifyOnBuild) return false;
       if (workflow.includes('deploy') && !setting.notifyOnDeploy) return false;
       if (workflow.includes('test') && !setting.notifyOnTest) return false;
-      if (workflow.includes('ci') && !setting.notifyOnCi) return false;
 
       return true;
     });
@@ -673,7 +672,8 @@ export class TelegramService {
 • *Branch:* [${payload.branch}](${branchUrl})
 • *Actor:* [${actor}](${actorUrl})
 • *Commit:* \`${payload.commit_sha.substring(0, 7)}\`
-${commitMessage ? `• *Message:* _"${commitMessage}"_` : ''}${jobsSection}
+• *Message:* _"${commitMessage || ""}"_
+• ${jobsSection}
 
 [View Workflow Run](${payload.run_url})`.trim();
   }
