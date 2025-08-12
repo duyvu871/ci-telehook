@@ -166,8 +166,9 @@ jobs:
             --arg commit_message "$COMMIT_MESSAGE" \
             --arg actor "$ACTOR" \
             --argjson jobs "$JOBS_JSON" \
+            --argjson jobs_full "$JOBS_API_JSON" \
             --arg workflow_duration_ms "$WORKFLOW_DURATION_MS" \
-            '{workflow_name:$workflow, repository:$repo, run_id:$run_id, run_url:$run_url, status:$status, jobs:$jobs, workflow_duration_ms: ($workflow_duration_ms|tonumber), branch:$branch, commit_sha:$commit_sha, commit_message:$commit_message, actor:$actor}')
+            '{workflow_name:$workflow, repository:$repo, run_id:$run_id, run_url:$run_url, status:$status, jobs:$jobs, jobs_full:$jobs_full, workflow_duration_ms: ($workflow_duration_ms|tonumber), branch:$branch, commit_sha:$commit_sha, commit_message:$commit_message, actor:$actor}')
 
           echo ""
           echo "📋 Webhook payload to be sent:"

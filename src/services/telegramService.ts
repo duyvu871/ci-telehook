@@ -30,10 +30,10 @@ export class TelegramService {
       const username = ctx.from?.username;
       const messageText = ctx.message?.text || '';
       const chatType = ctx.chat.type; // 'private', 'group', 'supergroup', 'channel'
-      
+
       // Parse command: /register <repository> [github_username]
       const parts = messageText.split(' ');
-      
+
       if (parts.length < 2) {
         ctx.reply(
           '❌ Cách sử dụng không đúng!\n\n' +
@@ -81,7 +81,7 @@ export class TelegramService {
 
         // Register user for notifications on this specific repository
         await prisma.notificationSettings.upsert({
-          where: { 
+          where: {
             chatId_repository: {
               chatId,
               repository
@@ -103,9 +103,9 @@ export class TelegramService {
           },
         });
 
-        const chatInfo = chatType === 'private' ? 'chat cá nhân' : 
-                        chatType === 'group' ? 'group' :
-                        chatType === 'supergroup' ? 'supergroup' : 'channel';
+        const chatInfo = chatType === 'private' ? 'chat cá nhân' :
+          chatType === 'group' ? 'group' :
+            chatType === 'supergroup' ? 'supergroup' : 'channel';
 
         ctx.reply(
           `✅ Đăng ký thành công!\n\n` +
@@ -147,9 +147,9 @@ export class TelegramService {
         let settingsText = `⚙️ *Cài đặt thông báo của bạn:*\n\n`;
         settingsText += `👤 *GitHub Username:* \`${allSettings[0].githubUsername || 'Chưa thiết lập'}\`\n`;
         settingsText += `💬 *Chat ID:* \`${chatId}\`\n\n`;
-        
+
         settingsText += `📂 *Các dự án đã đăng ký (${allSettings.length}):*\n`;
-        
+
         allSettings.forEach((setting, index) => {
           settingsText += `\n${index + 1}\\. *${setting.repository}*\n`;
           settingsText += `   • Thành công: ${setting.notifyOnSuccess ? '✅' : '❌'}\n`;
@@ -177,22 +177,22 @@ export class TelegramService {
     this.bot.command('unregister', async (ctx) => {
       const chatId = ctx.chat.id.toString();
       const messageText = ctx.message?.text || '';
-      
+
       // Parse command: /unregister <repository>
       const parts = messageText.split(' ');
-      
+
       if (parts.length < 2) {
         try {
           const allSettings = await prisma.notificationSettings.findMany({
             where: { chatId },
             select: { repository: true },
           });
-          
+
           if (allSettings.length === 0) {
             ctx.reply('❌ Bạn chưa đăng ký dự án nào.');
             return;
           }
-          
+
           const repoList = allSettings.map(s => `• \`${s.repository}\``).join('\n');
           ctx.reply(
             `❌ Vui lòng chỉ định repository để hủy đăng ký!\n\n` +
@@ -211,7 +211,7 @@ export class TelegramService {
 
       try {
         const deleted = await prisma.notificationSettings.deleteMany({
-          where: { 
+          where: {
             chatId,
             repository
           },
@@ -289,7 +289,7 @@ export class TelegramService {
 /unregister\\_chat - Hủy toàn bộ đăng ký của một chat
 
 �📞 *Hỗ trợ:* Liên hệ admin nếu có vấn đề.`;
-      
+
       ctx.reply(helpText, { parse_mode: 'Markdown' });
     });
 
@@ -297,7 +297,7 @@ export class TelegramService {
     this.bot.command('unregister_chat', async (ctx) => {
       const messageText = ctx.message?.text || '';
       const parts = messageText.split(' ');
-      
+
       if (parts.length < 2) {
         ctx.reply(
           '❌ Vui lòng chỉ định Chat ID!\n\n' +
@@ -332,7 +332,7 @@ export class TelegramService {
         });
 
         const repoList = settingsToDelete.map(s => `• ${s.repository}`).join('\n');
-        
+
         ctx.reply(
           `✅ *Admin Action: Đã hủy đăng ký thành công!*\n\n` +
           `🆔 Chat ID: \`${targetChatId}\`\n` +
@@ -364,7 +364,7 @@ export class TelegramService {
     this.bot.command('list_chats', async (ctx) => {
       const messageText = ctx.message?.text || '';
       const parts = messageText.split(' ');
-      
+
       if (parts.length < 2) {
         ctx.reply(
           '🔐 *Admin Command - Yêu cầu xác thực*\n\n' +
@@ -376,7 +376,7 @@ export class TelegramService {
       }
 
       const providedPassword = parts[1];
-      
+
       // Verify admin password
       if (providedPassword !== config.admin.password) {
         ctx.reply(
@@ -384,7 +384,7 @@ export class TelegramService {
           '🚫 Truy cập bị từ chối.',
           { parse_mode: 'Markdown' }
         );
-        
+
         // Log unauthorized access attempt
         console.warn(`❌ Unauthorized admin access attempt from chat ${ctx.chat.id} by user ${ctx.from?.username || 'unknown'}`);
         return;
@@ -421,7 +421,7 @@ export class TelegramService {
           message += `🆔 *Chat ID:* \`${chatId}\`\n`;
           message += `👤 *User:* ${settings[0].githubUsername || settings[0].username || 'N/A'}\n`;
           message += `📂 *Repositories (${settings.length}):*\n`;
-          
+
           settings.forEach(setting => {
             message += `   • ${setting.repository}\n`;
           });
@@ -461,10 +461,10 @@ export class TelegramService {
       this.bot.command(command, async (ctx) => {
         const chatId = ctx.chat.id.toString();
         const messageText = ctx.message?.text || '';
-        
+
         // Parse command: /toggle_success <repository>
         const parts = messageText.split(' ');
-        
+
         if (parts.length < 2) {
           // If no repository specified, show all repositories for this user
           try {
@@ -472,12 +472,12 @@ export class TelegramService {
               where: { chatId },
               select: { repository: true },
             });
-            
+
             if (allSettings.length === 0) {
               ctx.reply('❌ Bạn chưa đăng ký dự án nào. Sử dụng /register để đăng ký.');
               return;
             }
-            
+
             const repoList = allSettings.map(s => `• \`${s.repository}\``).join('\n');
             ctx.reply(
               `❌ Vui lòng chỉ định repository!\n\n` +
@@ -496,11 +496,11 @@ export class TelegramService {
 
         try {
           const settings = await prisma.notificationSettings.findUnique({
-            where: { 
-                chatId_repository: {
-                  chatId,
-                  repository
-                }
+            where: {
+              chatId_repository: {
+                chatId,
+                repository
+              }
             },
           });
 
@@ -515,11 +515,11 @@ export class TelegramService {
           const newValue = !currentValue;
 
           await prisma.notificationSettings.update({
-            where: { 
-                chatId_repository: {
-                    chatId,
-                    repository
-                }
+            where: {
+              chatId_repository: {
+                chatId,
+                repository
+              }
             },
             data: { [field]: newValue },
           });
@@ -550,7 +550,7 @@ export class TelegramService {
 
       // Get notification settings for users who registered for this specific repository
       const notificationSettings = await prisma.notificationSettings.findMany({
-        where: { 
+        where: {
           isActive: true,
           repository: payload.repository,
           projectId: project.id,
@@ -564,12 +564,12 @@ export class TelegramService {
 
       // Determine notification type and filter users
       const shouldNotify = this.shouldSendNotification(payload, notificationSettings);
-      
+
       console.log(`Sending notifications to ${shouldNotify.length} users for repository: ${payload.repository}`);
-      
+
       for (const settings of shouldNotify) {
         const message = this.formatNotificationMessage(payload, project.name);
-        
+
         try {
           await this.bot.telegram.sendMessage(settings.chatId, message, {
             parse_mode: 'Markdown',
@@ -607,7 +607,7 @@ export class TelegramService {
 
       if (status === 'success' && !setting.notifyOnSuccess) return false;
       if (status === 'failure' && !setting.notifyOnFailure) return false;
-      
+
       if (workflow.includes('build') && !setting.notifyOnBuild) return false;
       if (workflow.includes('deploy') && !setting.notifyOnDeploy) return false;
       if (workflow.includes('test') && !setting.notifyOnTest) return false;
@@ -623,7 +623,7 @@ export class TelegramService {
   private formatNotificationMessage(payload: GitHubWebhookPayload, projectName: string): string {
     const statusEmoji = this.getStatusEmoji(payload.status);
     const statusFormatted = this.formatStatus(payload.status);
-    
+
     const workflowName = this.escapeMarkdown(payload.workflow_name);
     const projectNameEscaped = this.escapeMarkdown(projectName);
     const actor = this.escapeMarkdown(payload.actor);
@@ -634,11 +634,15 @@ export class TelegramService {
 
     // Build jobs section if present
     let jobsSection = '';
-    const jobs = payload.jobs || [];
+    // Prefer lightweight jobs if provided, otherwise derive from jobs_full
+    let jobs = (payload.jobs ?? []) as NonNullable<GitHubWebhookPayload['jobs']>;
+    if (!jobs || jobs.length === 0) {
+      jobs = this.extractJobsFromFull(payload);
+    }
     if (jobs.length > 0) {
       const maxJobs = 10;
       const shown = jobs.slice(0, maxJobs);
-      const counts = { success: 0, failure: 0, in_progress: 0, cancelled: 0, skipped: 0 };
+      const counts = { success: 0, failure: 0, in_progress: 0, cancelled: 0, skipped: 0 } as Record<string, number>;
       const jobLines = shown
         .map((j) => {
           // accumulate counts
@@ -663,33 +667,93 @@ export class TelegramService {
     }
 
     return `${statusEmoji} *CI/CD Notification*
+    *Workflow:* ${workflowName}
+    *Project:* ${projectNameEscaped}
+    *Status:* ${statusFormatted}
+    
+    • *Repository:* [${payload.repository}](${repoUrl})
+    • *Branch:* [${payload.branch}](${branchUrl})
+    • *Actor:* [${actor}](${actorUrl})
+    • *Commit:* \`${payload.commit_sha.substring(0, 7)}\`
+    • *Message:* _\"${commitMessage || ""}\"_${jobsSection}
+    
+    [View Workflow Run](${payload.run_url})`.trim();
+  }
 
-*Workflow:* ${workflowName}
-*Project:* ${projectNameEscaped}
-*Status:* ${statusFormatted}
+  // Map GitHub Jobs API status/conclusion to our lightweight result set
+  private mapJobApiToResult(status?: string, conclusion?: string): 'success' | 'failure' | 'in_progress' | 'cancelled' | 'skipped' {
+    const st = (status || '').toLowerCase();
+    const conc = (conclusion || '').toLowerCase();
 
-• *Repository:* [${payload.repository}](${repoUrl})
-• *Branch:* [${payload.branch}](${branchUrl})
-• *Actor:* [${actor}](${actorUrl})
-• *Commit:* \`${payload.commit_sha.substring(0, 7)}\`
-• *Message:* _"${commitMessage || ""}"_${jobsSection}
+    // If not completed or no conclusion yet
+    if (st && st !== 'completed' && !conc) return 'in_progress';
 
-[View Workflow Run](${payload.run_url})`.trim();
+    switch (conc) {
+      case 'success':
+        return 'success';
+      case 'failure':
+        return 'failure';
+      case 'cancelled':
+        return 'cancelled';
+      case 'skipped':
+        return 'skipped';
+      // Map some extra conclusions into closest buckets
+      case 'neutral':
+        return 'success';
+      case 'timed_out':
+      case 'action_required':
+      case 'startup_failure':
+      case 'stale':
+        return 'failure';
+      default:
+        return conc ? 'failure' : 'in_progress';
+    }
+  }
+
+  // Derive lightweight jobs from full GitHub Jobs API payload if available
+  private extractJobsFromFull(payload: GitHubWebhookPayload): NonNullable<GitHubWebhookPayload['jobs']> {
+    const jf: any = (payload as any).jobs_full;
+    if (!jf || !Array.isArray(jf.jobs)) return [] as unknown as NonNullable<GitHubWebhookPayload['jobs']>;
+
+    return jf.jobs.map((job: any) => {
+      const result = this.mapJobApiToResult(job.status, job.conclusion);
+      const url: string = job.html_url || job.url || payload.run_url;
+      const name: string = job.name || `Job ${job.id}`;
+      const started_at: string | undefined = job.started_at || undefined;
+      const completed_at: string | null | undefined = typeof job.completed_at === 'string' ? job.completed_at : undefined;
+      let duration_ms: number | undefined;
+      if (started_at && completed_at) {
+        const s = Date.parse(started_at);
+        const e = Date.parse(completed_at);
+        if (!Number.isNaN(s) && !Number.isNaN(e) && e >= s) {
+          duration_ms = e - s;
+        }
+      }
+      return {
+        id: Number(job.id),
+        name,
+        result,
+        url,
+        started_at,
+        completed_at,
+        duration_ms,
+      };
+    });
   }
 
   private formatStatus(status: string): string {
     switch (status.toLowerCase()) {
-      case 'success': 
+      case 'success':
         return '✅ *SUCCESS*';
-      case 'failure': 
+      case 'failure':
         return '❌ *FAILURE*';
-      case 'cancelled': 
+      case 'cancelled':
         return '⚠️ *CANCELLED*';
-      case 'skipped': 
+      case 'skipped':
         return '⏭️ *SKIPPED*';
       case 'in_progress':
         return '🔄 *IN PROGRESS*';
-      default: 
+      default:
         return `🔵 *${status.toUpperCase()}*`;
     }
   }

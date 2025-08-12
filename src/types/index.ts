@@ -1,11 +1,62 @@
 import { z } from 'zod';
 
-// Job schema for GitHub Actions
+// Step schema for a GitHub job (from GitHub API)
+export const GitHubJobStepSchema = z.object({
+  name: z.string(),
+  status: z.enum(['queued', 'in_progress', 'completed', 'success', 'failure', 'cancelled']).or(z.string()),
+  conclusion: z
+    .enum(['success', 'failure', 'cancelled', 'skipped', 'neutral', 'timed_out', 'action_required'])
+    .nullable()
+    .optional(),
+  number: z.number().optional(),
+  started_at: z.string().datetime().optional(),
+  completed_at: z.string().datetime().nullable().optional(),
+}).passthrough(); // Allow additional fields
+
+// Full GitHub API Job schema
+export const GitHubApiJobSchema = z.object({
+  id: z.number(),
+  run_id: z.number(),
+  workflow_name: z.string(),
+  head_branch: z.string().optional(),
+  run_url: z.string().url(),
+  run_attempt: z.number().optional(),
+  node_id: z.string().optional(),
+  head_sha: z.string().optional(),
+  url: z.string().url(),
+  html_url: z.string().url(),
+  status: z.enum(['queued', 'in_progress', 'completed', 'success', 'failure', 'cancelled']).or(z.string()),
+  conclusion: z
+    .enum(['success', 'failure', 'cancelled', 'skipped', 'neutral', 'timed_out', 'action_required'])
+    .nullable(),
+  created_at: z.string().datetime().optional(),
+  started_at: z.string().datetime().optional(),
+  completed_at: z.string().datetime().nullable().optional(),
+  name: z.string(),
+  steps: z.array(GitHubJobStepSchema).optional(),
+  check_run_url: z.string().url().optional(),
+  labels: z.array(z.string()).optional(),
+  runner_id: z.number().optional(),
+  runner_name: z.string().optional(),
+  runner_group_id: z.number().optional(),
+  runner_group_name: z.string().optional(),
+}).passthrough();
+
+export const GitHubJobsApiResponseSchema = z.object({
+  total_count: z.number(),
+  jobs: z.array(GitHubApiJobSchema),
+});
+
+// Job schema for GitHub Actions (lightweight for Telegram rendering)
 export const GitHubJobSchema = z.object({
   id: z.number(),
   name: z.string().min(1, 'Job name is required'),
   result: z.enum(['success', 'failure', 'in_progress', 'cancelled', 'skipped']),
   url: z.string().url('Job URL must be a valid URL'),
+  // Timing fields (optional)
+  started_at: z.string().datetime().optional(),
+  completed_at: z.string().datetime().nullable().optional(),
+  duration_ms: z.number().int().nonnegative().nullable().optional(),
 });
 export type GitHubWebhookJob = z.infer<typeof GitHubJobSchema>;
 
@@ -20,8 +71,12 @@ export const GitHubWebhookPayloadSchema = z.object({
   commit_sha: z.string().min(7, 'Commit SHA must be at least 7 characters'),
   commit_message: z.string().optional(),
   actor: z.string().min(1, 'Actor is required'),
-  // New: list of jobs in the workflow run
+  // Lightweight list of jobs used for rendering
   jobs: z.array(GitHubJobSchema).optional().default([]),
+  // Optional: full GitHub jobs API response for advanced processing
+  jobs_full: GitHubJobsApiResponseSchema.optional(),
+  // Total workflow duration (ms) computed on CI (optional)
+  workflow_duration_ms: z.number().int().nonnegative().optional(),
 });
 
 export type GitHubWebhookPayload = z.infer<typeof GitHubWebhookPayloadSchema>;
