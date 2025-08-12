@@ -134,6 +134,9 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "$GITHUB_API_URL/repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100")
 
+          echo "Fetched job details from GitHub API"
+          echo $JOBS_API_JSON | jq '.' 2>/dev/null || echo "$JOBS_API_JSON"
+
           # Build jobs array: [{id, name, result, url, started_at, completed_at, duration_ms}]
           JOBS_JSON=$(echo "$JOBS_API_JSON" | jq '[.jobs // [] | .[]
             | { id: .id,
