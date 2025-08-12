@@ -56,7 +56,7 @@ export const GitHubJobSchema = z.object({
   // Timing fields (optional)
   started_at: z.string().datetime().optional(),
   completed_at: z.string().datetime().nullable().optional(),
-  duration_ms: z.number().int().nonnegative().nullable().optional(),
+  duration_ms: z.number().int().nonnegative().nullable().optional().default(0),
 });
 export type GitHubWebhookJob = z.infer<typeof GitHubJobSchema>;
 

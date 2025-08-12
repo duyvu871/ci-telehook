@@ -631,6 +631,7 @@ export class TelegramService {
     const repoUrl = `https://github.com/${payload.repository}`;
     const branchUrl = `${repoUrl}/tree/${payload.branch}`;
     const actorUrl = `https://github.com/${payload.actor}`;
+    const commitUrl = `${repoUrl}/commit/${payload.commit_sha}`;
 
     // Build jobs section if present
     let jobsSection = '';
@@ -648,10 +649,11 @@ export class TelegramService {
           // accumulate counts
           // @ts-ignore strict key typing handled by schema
           counts[j.result] = (counts as any)[j.result] + 1;
+          const duration = j.duration_ms ? `(${(j.duration_ms < 1000 ? j.duration_ms + 'ms' : (j.duration_ms / 1000) + 's')})` : '';
           const emoji = this.getResultEmoji(j.result);
           const name = this.escapeMarkdown(j.name);
           const label = j.result.toUpperCase().replace('_', ' ');
-          return `  - ${emoji} [${name}](${j.url}) • ${label}`;
+          return `  - ${emoji} [${name}](${j.url}) ${duration} • ${label}`;
         })
         .join('\n');
       // finish counts for hidden jobs too
@@ -667,17 +669,17 @@ export class TelegramService {
     }
 
     return `${statusEmoji} *CI/CD Notification*
-    *Workflow:* ${workflowName}
-    *Project:* ${projectNameEscaped}
-    *Status:* ${statusFormatted}
+*Workflow:* ${workflowName}
+*Project:* ${projectNameEscaped}
+*Status:* ${statusFormatted}
     
-    • *Repository:* [${payload.repository}](${repoUrl})
-    • *Branch:* [${payload.branch}](${branchUrl})
-    • *Actor:* [${actor}](${actorUrl})
-    • *Commit:* \`${payload.commit_sha.substring(0, 7)}\`
-    • *Message:* _\"${commitMessage || ""}\"_${jobsSection}
+• *Repository:* [${payload.repository}](${repoUrl})
+• *Branch:* [${payload.branch}](${branchUrl})
+• *Actor:* [${actor}](${actorUrl})
+• *Commit:* [${payload.commit_sha.substring(0, 7)}](${commitUrl})
+• *Message:* _\"${commitMessage || ""}\"_${jobsSection}
     
-    [View Workflow Run](${payload.run_url})`.trim();
+[View Workflow Run](${payload.run_url})`.trim();
   }
 
   // Map GitHub Jobs API status/conclusion to our lightweight result set
