@@ -654,7 +654,7 @@ export class TelegramService {
           const name = this.escapeMarkdown(j.name);
           const label = j.result.toUpperCase().replace('_', ' ');
           const steps = payload.jobs_full?.jobs?.find((job) => job.id === j.id)?.steps || [];
-          const stepsDetails = steps.length > 0 ? `\n\t${steps.map((step) => `${this.getResultEmoji(step.conclusion || '')} ${this.escapeMarkdown(step.name || "N/A")} (${step.started_at && step.completed_at ? this.calculateDuration(step.started_at, step.completed_at) : 'N/A'})`).join('\n\t')}` : '';
+          const stepsDetails = steps.length > 0 ? `\n   ${steps.map((step) => `${this.getResultEmoji(step.conclusion || '')} ${this.escapeMarkdown(step.name || "N/A")} (${step.started_at && step.completed_at ? this.calculateDuration(step.started_at, step.completed_at) : 'N/A'})`).join('\n   ')}` : '';
           return `  - ${emoji} [${name}](${j.url}) ${duration} • ${label}: ${stepsDetails}`;
         })
         .join('\n');
