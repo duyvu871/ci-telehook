@@ -550,7 +550,7 @@ export class TelegramService {
 
       // Get notification settings for users who registered for this specific repository
       const notificationSettings = await prisma.notificationSettings.findMany({
-        where: {
+        where: { 
           isActive: true,
           repository: payload.repository,
           projectId: project.id,
@@ -564,15 +564,15 @@ export class TelegramService {
 
       // Determine notification type and filter users
       const shouldNotify = this.shouldSendNotification(payload, notificationSettings);
-
+      
       console.log(`Sending notifications to ${shouldNotify.length} users for repository: ${payload.repository}`);
-
+      
       for (const settings of shouldNotify) {
         const message = this.formatNotificationMessage(payload, project.name);
-
+        
         try {
           await this.bot.telegram.sendMessage(settings.chatId, message, {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
           });
           console.log(`✅ Notification sent to user ${settings.githubUsername || settings.username} (${settings.chatId})`);
         } catch (error) {
@@ -600,6 +600,12 @@ export class TelegramService {
     }
   }
 
+  // Keep for commands using Markdown
+  private escapeMarkdown(text: string): string {
+    return text.replace(/[_*\[\]()~`>#+=|{}.!-]/g, '\\$&');
+  }
+
+  // Determine who should be notified for this payload (unchanged logic)
   private shouldSendNotification(payload: GitHubWebhookPayload, settings: any[]) {
     return settings.filter(setting => {
       const status = payload.status.toLowerCase();
@@ -616,18 +622,24 @@ export class TelegramService {
     });
   }
 
-  private escapeMarkdown(text: string): string {
-    return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+  // Escape HTML to safely use in Telegram HTML parse_mode
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   private formatNotificationMessage(payload: GitHubWebhookPayload, projectName: string): string {
     const statusEmoji = this.getStatusEmoji(payload.status);
     const statusFormatted = this.formatStatus(payload.status);
-
-    const workflowName = this.escapeMarkdown(payload.workflow_name);
-    const projectNameEscaped = this.escapeMarkdown(projectName);
-    const actor = this.escapeMarkdown(payload.actor);
-    const commitMessage = payload.commit_message ? this.escapeMarkdown(payload.commit_message) : '';
+    
+    const workflowName = this.escapeHtml(payload.workflow_name);
+    const projectNameEscaped = this.escapeHtml(projectName);
+    const actor = this.escapeHtml(payload.actor);
+    const commitMessage = payload.commit_message ? this.escapeHtml(payload.commit_message) : '';
     const repoUrl = `https://github.com/${payload.repository}`;
     const branchUrl = `${repoUrl}/tree/${payload.branch}`;
     const actorUrl = `https://github.com/${payload.actor}`;
@@ -651,11 +663,18 @@ export class TelegramService {
           counts[j.result] = (counts as any)[j.result] + 1;
           const duration = j.started_at && j.completed_at ? this.calculateDuration(j.started_at, j.completed_at) : 'N/A';
           const emoji = this.getResultEmoji(j.result);
-          const name = this.escapeMarkdown(j.name);
+          const name = this.escapeHtml(j.name);
           const label = j.result.toUpperCase().replace('_', ' ');
-          const steps = payload.jobs_full?.jobs?.find((job) => job.id === j.id)?.steps || [];
-          const stepsDetails = steps.length > 0 ? `\n   ${steps.map((step) => `${this.getResultEmoji(step.conclusion || '')} ${this.escapeMarkdown(step.name || "N/A")} (${step.started_at && step.completed_at ? this.calculateDuration(step.started_at, step.completed_at) : 'N/A'})`).join('\n   ')}` : '';
-          return `  - ${emoji} [${name}](${j.url}) ${duration} • ${label}: ${stepsDetails}`;
+          const steps = (payload as any).jobs_full?.jobs?.find((job: any) => job.id === j.id)?.steps || [];
+          const stepLines = steps.map((step: any) => {
+            const stepEmoji = this.getResultEmoji(step.conclusion || step.status || '');
+            const stepName = this.escapeHtml(step.name || 'N/A');
+            const stepDur = step.started_at && step.completed_at ? this.calculateDuration(step.started_at, step.completed_at) : 'N/A';
+            return ` - ${stepEmoji} ${stepName} (${stepDur})`;
+          }).join('\n');
+          const stepsDetails = stepLines ? `\n<pre>${stepLines}</pre>` : '';
+          const urlSafe = this.escapeHtml(j.url);
+          return `  - ${emoji} <a href="${urlSafe}">${name}</a> ${duration} • ${label}:${stepsDetails}`;
         })
         .join('\n');
       // finish counts for hidden jobs too
@@ -667,21 +686,20 @@ export class TelegramService {
       }
       const summaryLine = `Totals: ✅ ${counts.success} • ❌ ${counts.failure} • 🔄 ${counts.in_progress} • ⚠️ ${counts.cancelled} • ⏭️ ${counts.skipped}`;
       const moreLine = jobs.length > maxJobs ? `\n  …and ${jobs.length - maxJobs} more` : '';
-      jobsSection = `\n\n*Jobs (${jobs.length}):*\n${jobLines}\n${summaryLine}${moreLine}`;
+      jobsSection = `\n\n<b>Jobs (${jobs.length}):</b>\n${jobLines}\n${summaryLine}${moreLine}`;
     }
 
-    return `${statusEmoji} *CI/CD Notification*
-*Workflow:* ${workflowName}
-*Project:* ${projectNameEscaped}
-*Status:* ${statusFormatted}
-    
-• *Repository:* [${payload.repository}](${repoUrl})
-• *Branch:* [${payload.branch}](${branchUrl})
-• *Actor:* [${actor}](${actorUrl})
-• *Commit:* [${payload.commit_sha.substring(0, 7)}](${commitUrl})
-• *Message:* _\"${commitMessage || ""}\"_${jobsSection}
-    
-[View Workflow Run](${payload.run_url})`.trim();
+    return `${statusEmoji} <b>CI/CD Notification</b>\n\n` +
+      `<b>Workflow:</b> ${workflowName}\n` +
+      `<b>Project:</b> ${projectNameEscaped}\n` +
+      `<b>Status:</b> ${statusFormatted}\n\n` +
+      `• <b>Repository:</b> <a href="${this.escapeHtml(repoUrl)}">${this.escapeHtml(payload.repository)}</a>\n` +
+      `• <b>Branch:</b> <a href="${this.escapeHtml(branchUrl)}">${this.escapeHtml(payload.branch)}</a>\n` +
+      `• <b>Actor:</b> <a href="${this.escapeHtml(actorUrl)}">${actor}</a>\n` +
+      `• <b>Commit:</b> <a href="${this.escapeHtml(commitUrl)}">${this.escapeHtml(payload.commit_sha.substring(0, 7))}</a>\n` +
+      `• <b>Message:</b>\n<pre>${commitMessage || ''}</pre>${jobsSection}\n\n` +
+      `<a href="${this.escapeHtml(payload.run_url)}">View Workflow Run</a>`
+      .trim();
   }
 
   // Map GitHub Jobs API status/conclusion to our lightweight result set
@@ -689,7 +707,6 @@ export class TelegramService {
     const st = (status || '').toLowerCase();
     const conc = (conclusion || '').toLowerCase();
 
-    // If not completed or no conclusion yet
     if (st && st !== 'completed' && !conc) return 'in_progress';
 
     switch (conc) {
@@ -701,7 +718,6 @@ export class TelegramService {
         return 'cancelled';
       case 'skipped':
         return 'skipped';
-      // Map some extra conclusions into closest buckets
       case 'neutral':
         return 'success';
       case 'timed_out':
@@ -747,18 +763,18 @@ export class TelegramService {
 
   private formatStatus(status: string): string {
     switch (status.toLowerCase()) {
-      case 'success':
-        return '✅ *SUCCESS*';
-      case 'failure':
-        return '❌ *FAILURE*';
-      case 'cancelled':
-        return '⚠️ *CANCELLED*';
-      case 'skipped':
-        return '⏭️ *SKIPPED*';
+      case 'success': 
+        return '✅ <b>SUCCESS</b>';
+      case 'failure': 
+        return '❌ <b>FAILURE</b>';
+      case 'cancelled': 
+        return '⚠️ <b>CANCELLED</b>';
+      case 'skipped': 
+        return '⏭️ <b>SKIPPED</b>';
       case 'in_progress':
-        return '🔄 *IN PROGRESS*';
-      default:
-        return `🔵 *${status.toUpperCase()}*`;
+        return '🔄 <b>IN PROGRESS</b>';
+      default: 
+        return `🔵 <b>${this.escapeHtml(status.toUpperCase())}</b>`;
     }
   }
 
