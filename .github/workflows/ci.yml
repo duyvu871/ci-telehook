@@ -5,6 +5,13 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
+    # allow manual trigger
+    inputs:
+      branch:
+        description: 'Branch'
+        required: false
+        default: 'main'
 
 env:
   NODE_VERSION: '20'
