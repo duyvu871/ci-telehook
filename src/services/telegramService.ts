@@ -649,11 +649,13 @@ export class TelegramService {
           // accumulate counts
           // @ts-ignore strict key typing handled by schema
           counts[j.result] = (counts as any)[j.result] + 1;
-          const duration = j.duration_ms ? `(${(j.duration_ms < 1000 ? j.duration_ms + 'ms' : (j.duration_ms / 1000) + 's')})` : '';
+          const duration = j.started_at && j.completed_at ? this.calculateDuration(j.started_at, j.completed_at) : 'N/A';
           const emoji = this.getResultEmoji(j.result);
           const name = this.escapeMarkdown(j.name);
           const label = j.result.toUpperCase().replace('_', ' ');
-          return `  - ${emoji} [${name}](${j.url}) ${duration} • ${label}`;
+          const steps = payload.jobs_full?.jobs?.find((job) => job.id === j.id)?.steps || [];
+          const stepsDetails = steps.length > 0 ? `\n\t${steps.map((step) => `${this.getResultEmoji(step.conclusion || '')} ${this.escapeMarkdown(step.name || "N/A")} (${step.started_at && step.completed_at ? this.calculateDuration(step.started_at, step.completed_at) : 'N/A'})`).join('\n\t')}` : '';
+          return `  - ${emoji} [${name}](${j.url}) ${duration} • ${label}: ${stepsDetails}`;
         })
         .join('\n');
       // finish counts for hidden jobs too
@@ -789,6 +791,16 @@ export class TelegramService {
     if (workflowLower.includes('test')) return '🧪';
     if (workflowLower.includes('ci')) return '⚙️';
     return '📋';
+  }
+
+  private calculateDuration(startedAt: string, completedAt: string): string {
+    const start = Date.parse(startedAt);
+    const end = Date.parse(completedAt);
+    if (Number.isNaN(start) || Number.isNaN(end)) return 'N/A';
+    const duration = end - start;
+    if (duration < 0) return 'N/A';
+    if (duration < 1000) return `${duration}ms`;
+    return `${(duration / 1000).toFixed(2)}s`;
   }
 
   launch() {
